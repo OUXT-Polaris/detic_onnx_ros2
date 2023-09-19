@@ -246,7 +246,7 @@ class MinimalPublisher(Node):
             image_annotations: List[ImageAnnotation] = []
             clip_encoder = ClipEncoder()
             
-            detic_image_labeler = DeticImageLabeler(yaml_path='/mnt/hdd3tb/ros2_ws/src/detic_onnx_ros2/detic_onnx_ros2/amber/tests/automation/detic_image_labeler.yaml')
+            detic_image_labeler = DeticImageLabeler(yaml_path='/mnt/hdd3tb/ros2_ws/src/detic_onnx_ros2/amber/tests/automation/detic_image_labeler.yaml')
             class_names = (
                     detic_image_labeler.get_lvis_meta_v1()
                     if vocabulary == "lvis"

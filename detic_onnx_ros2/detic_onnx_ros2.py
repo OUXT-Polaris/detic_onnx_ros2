@@ -49,6 +49,7 @@ class DeticImageLabeler(Automation):  # type: ignore
         self.session = onnxruntime.InferenceSession(
             self.weight_and_model,
             providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
+            #providers=["CUDAExecutionProvider"],  # "CPUExecutionProvider"],
         )
         self.to_pil_image = transforms.ToPILImage()
         
@@ -227,12 +228,23 @@ class MinimalPublisher(Node):
     def __init__(self):
         super().__init__('minimal_publisher')
         self.publisher = self.create_publisher(Image, 'detic_result', 10)
-        timer_period = 0.5
+        timer_period = 0.1
         self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.subscription = self.create_subscription(Image, '/image_raw', self.image_callback, 10)
         self.bridge = CvBridge()
+        self.image_msg = None
+        self.flag = True
+        
+    def image_callback(self, msg):
+        if(self.flag == True):
+            self.image_msg = msg
+        else:
+            pass
 
     def timer_callback(self):
-        input_image = cv2.imread("/mnt/hdd3tb/ros2_ws/src/detic_onnx_ros2/desk.jpg")
+        self.flag = False
+        input_image = self.bridge.imgmsg_to_cv2(self.image_msg)
+        #input_image = cv2.imread("/mnt/hdd3tb/ros2_ws/src/detic_onnx_ros2/desk.jpg")
         if(input_image is None):
             print("No image is exit")
         else:        
@@ -241,7 +253,9 @@ class MinimalPublisher(Node):
             input_image_x = input_image.transpose((2, 0, 1)).copy()
             input_image_x = torch.from_numpy(input_image_x).clone()
             print(input_image_x.shape)
-            input_image_x_re = F.resize(img=input_image_x, size=(600, 800))
+            input_image_x_re = F.resize(img=input_image_x, size=(input_image_x.shape[1], input_image_x.shape[2]))
+            print(f'resize : {input_image_x_re.shape}')
+            
             vocabulary = "lvis"
             image_annotations: List[ImageAnnotation] = []
             clip_encoder = ClipEncoder()
@@ -291,6 +305,7 @@ class MinimalPublisher(Node):
             
             imgMsg = self.bridge.cv2_to_imgmsg(visualization, 'bgr8')
             self.publisher.publish(imgMsg)
+            self.flag = True
 
 def main(args=None):
     rclpy.init(args=args)

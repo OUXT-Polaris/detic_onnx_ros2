@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, '/mnt/hdd3tb/ros2_ws/src/detic_onnx_ros2/amber')
+sys.path.insert(0, '/home/ubuntu/ros2_ws/src/detic_onnx_ros2/amber')
 
 import amber
 
@@ -38,6 +38,8 @@ import torch
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+
+from detic_onnx_ros2_msg.msg import SegmentationInfo
 
 from cv_bridge import CvBridge
 
@@ -107,6 +109,10 @@ class DeticImageLabeler(Automation):  # type: ignore
         scores = detection_results["scores"]
         classes = detection_results["classes"].tolist()
         masks = detection_results["masks"].astype(np.uint8)
+        
+        print(f"mask data type : {type(masks)}")
+        print(f"mask len : {len(masks)}")
+        print(f"mask shape : {masks.shape}")
 
         class_names = (
             self.get_lvis_meta_v1()
@@ -228,12 +234,14 @@ class MinimalPublisher(Node):
     def __init__(self):
         super().__init__('minimal_publisher')
         self.publisher = self.create_publisher(Image, 'detic_result', 10)
+        self.segmentation_publisher = self.create_publisher(SegmentationInfo, 'segmentationinfo', 10)
         timer_period = 0.1
         self.timer = self.create_timer(timer_period, self.timer_callback)
-        self.subscription = self.create_subscription(Image, '/image_raw', self.image_callback, 10)
+        self.subscription = self.create_subscription(Image, '/wamv/sensors/cameras/front_left_camera_sensor/image_raw', self.image_callback, 10)
         self.bridge = CvBridge()
         self.image_msg = None
         self.flag = True
+        self.segmentationinfo = SegmentationInfo()
         
     def image_callback(self, msg):
         if(self.flag == True):
@@ -253,14 +261,12 @@ class MinimalPublisher(Node):
             input_image_x = input_image.transpose((2, 0, 1)).copy()
             input_image_x = torch.from_numpy(input_image_x).clone()
             print(input_image_x.shape)
-            input_image_x_re = F.resize(img=input_image_x, size=(input_image_x.shape[1], input_image_x.shape[2]))
-            print(f'resize : {input_image_x_re.shape}')
             
             vocabulary = "lvis"
             image_annotations: List[ImageAnnotation] = []
             clip_encoder = ClipEncoder()
             
-            detic_image_labeler = DeticImageLabeler(yaml_path='/mnt/hdd3tb/ros2_ws/src/detic_onnx_ros2/amber/tests/automation/detic_image_labeler.yaml')
+            detic_image_labeler = DeticImageLabeler(yaml_path='/home/ubuntu/ros2_ws/src/detic_onnx_ros2/amber/tests/automation/detic_image_labeler.yaml')
             class_names = (
                     detic_image_labeler.get_lvis_meta_v1()
                     if vocabulary == "lvis"
@@ -268,6 +274,8 @@ class MinimalPublisher(Node):
                 )["thing_classes"]
             
             image = detic_image_labeler.preprocess(image=input_image)
+            input_image_x_re = F.resize(img=input_image_x, size=(image.shape[2], image.shape[3]))
+            print(f'resize : {input_image_x_re.shape}')
             input_height = image.shape[2]
             input_width = image.shape[3]
             boxes, scores, classes, masks = detic_image_labeler.session.run(
@@ -277,20 +285,44 @@ class MinimalPublisher(Node):
                     "im_hw" : np.array([input_height, input_width]).astype(np.int64)
                 },
             )
-            print(f"masks shape : {masks.shape}")
-            print(f"masks len : {len(masks)}")
-            print(f"boxes len : {len(boxes)}")
+            draw_mask = masks
+            masks = masks.astype(np.uint8)
+            draw_classes = classes
+            draw_boxes = boxes
+            draw_scores = scores
+                                
+            labels = [class_names[i] for i in classes]
+            areas = np.prod(boxes[:, 2:] - boxes[:, :2], axis=1)
+            if areas is not None:
+                sorted_idxs = np.argsort(-areas).tolist()
+                # Re-order overlapped instances in descending order.
+                boxes = boxes[sorted_idxs]
+                labels = [labels[k] for k in sorted_idxs]
+                masks = [masks[idx] for idx in sorted_idxs]
+            #print(f"mask data type : {type(masks)}")
+            #print(f"mask data shape : {masks[0].shape}")
+            #print(f"mask data : {masks}")
+            scores = scores.astype(np.float32)
+            segMsg = self.bridge.cv2_to_imgmsg(masks[0], '8UC1')
+            # segMsg = []
+            # for i in masks:
+            #     segMsg.append(self.bridge.cv2_to_imgmsg(i, 'mono8'))
+            
+            self.segmentationinfo.header.stamp =  self.get_clock().now().to_msg()
+            self.segmentationinfo.detected_classes = labels
+            #self.segmentationinfo.scores = scores
+            self.segmentationinfo.segmentation = segMsg
+            
+            self.segmentation_publisher.publish(self.segmentationinfo)
+            
             image_annotation = ImageAnnotation()
             image_annotation.image_index = 0
             detection_results = {
-                        "boxes": boxes,
-                        "scores": scores,
-                        "classes": classes,
-                        "masks": masks,
+                        "boxes": draw_boxes,
+                        "scores": draw_scores,
+                        "classes": draw_classes,
+                        "masks": draw_mask,
             }
-            
-            # for bbox_id in range(len(boxes)):
-                # to rosmsg
                 
             for bbox_id in range(len(boxes)):
                 bounding_box = BoundingBoxAnnotation()

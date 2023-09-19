@@ -1,0 +1,3 @@
+[submodule "amber"]
+	path = amber
+	url = https://github.com/rosbag-sharing-community/amber.git

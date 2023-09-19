@@ -277,7 +277,9 @@ class MinimalPublisher(Node):
                     "im_hw" : np.array([input_height, input_width]).astype(np.int64)
                 },
             )
-            
+            print(f"masks shape : {masks.shape}")
+            print(f"masks len : {len(masks)}")
+            print(f"boxes len : {len(boxes)}")
             image_annotation = ImageAnnotation()
             image_annotation.image_index = 0
             detection_results = {
@@ -286,6 +288,10 @@ class MinimalPublisher(Node):
                         "classes": classes,
                         "masks": masks,
             }
+            
+            # for bbox_id in range(len(boxes)):
+                
+                   
             for bbox_id in range(len(boxes)):
                 bounding_box = BoundingBoxAnnotation()
                 bounding_box.box.x1 = boxes[bbox_id][0]

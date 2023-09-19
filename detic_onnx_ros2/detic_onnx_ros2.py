@@ -290,8 +290,8 @@ class MinimalPublisher(Node):
             }
             
             # for bbox_id in range(len(boxes)):
+                # to rosmsg
                 
-                   
             for bbox_id in range(len(boxes)):
                 bounding_box = BoundingBoxAnnotation()
                 bounding_box.box.x1 = boxes[bbox_id][0]

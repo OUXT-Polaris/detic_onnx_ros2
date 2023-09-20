@@ -25,14 +25,14 @@ ros2 run detic_onnx_ros2 detic_onnx_ros2_node --ros-args --remap image_raw:=(inp
 You can see detection results in `/detic_result/image` topic with sensor_msgs/msg/Image type.
 
 ## Roadmap
-[x] Inference with ROS 2 sensor_msgs/msg/Image topic.
-[x] Visualize segmentation result.
-[x] Publish object class.
-[x] Publish object score.
-[ ] Add launch file.
-[ ] Add config file for setting detection width / detic model type / vocaburary etc...
-[ ] Publish object mask.
-[ ] Inference with GPU.
+- [x] Inference with ROS 2 sensor_msgs/msg/Image topic.
+- [x] Visualize segmentation result.
+- [x] Publish object class.
+- [x] Publish object score.
+- [ ] Add launch file.
+- [ ] Add config file for setting detection width / detic model type / vocaburary etc...
+- [ ] Publish object mask.
+- [ ] Inference with GPU.
 
 ## Limitation
 Custom vocabulary will not be supported because of onnx model used in this package does not support it.

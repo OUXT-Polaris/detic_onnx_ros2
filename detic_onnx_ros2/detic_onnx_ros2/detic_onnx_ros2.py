@@ -281,7 +281,9 @@ class DeticNode(Node):
             "masks": draw_mask,
         }
         visualization = self.draw_predictions(
-            cv2.resize(input_image, (input_width, input_height)),
+            cv2.cvtColor(
+                cv2.resize(input_image, (input_width, input_height)), cv2.COLOR_BGR2RGB
+            ),
             detection_results,
             "lvis",
         )

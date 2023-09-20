@@ -21,13 +21,17 @@ from cv_bridge import CvBridge
 from detic_onnx_ros2.imagenet_21k import IN21K_CATEGORIES
 from detic_onnx_ros2.lvis import LVIS_CATEGORIES as LVIS_V1_CATEGORIES
 from ament_index_python import get_package_share_directory
-from detic_onnx_ros2.color import random_color
+from detic_onnx_ros2.color import random_color, color_brightness
 
 
 class DeticNode(Node):
     def __init__(self):
         super().__init__("detic_node")
         self.weight_and_model = self.download_onnx(self.config.get_onnx_filename())
+        self.session = onnxruntime.InferenceSession(
+            self.weight_and_model,
+            providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
+        )
         self.publisher = self.create_publisher(Image, "detic_result", 10)
         self.segmentation_publisher = self.create_publisher(
             SegmentationInfo, "segmentationinfo", 10
@@ -241,25 +245,21 @@ class DeticNode(Node):
             print(input_image_x.shape)
 
             vocabulary = "lvis"
-            image_annotations: List[ImageAnnotation] = []
 
-            detic_image_labeler = DeticImageLabeler(
-                yaml_path="/home/ubuntu/ros2_ws/src/detic_onnx_ros2/amber/tests/automation/detic_image_labeler.yaml"
-            )
             class_names = (
-                detic_image_labeler.get_lvis_meta_v1()
+                self.get_lvis_meta_v1()
                 if vocabulary == "lvis"
-                else detic_image_labeler.get_in21k_meta_v1()
+                else self.get_in21k_meta_v1()
             )["thing_classes"]
 
-            image = detic_image_labeler.preprocess(image=input_image)
+            image = self.preprocess(image=input_image)
             input_image_x_re = F.resize(
                 img=input_image_x, size=(image.shape[2], image.shape[3])
             )
             print(f"resize : {input_image_x_re.shape}")
             input_height = image.shape[2]
             input_width = image.shape[3]
-            boxes, scores, classes, masks = detic_image_labeler.session.run(
+            boxes, scores, classes, masks = self.session.run(
                 None,
                 {
                     "img": image,
@@ -296,38 +296,13 @@ class DeticNode(Node):
 
             self.segmentation_publisher.publish(self.segmentationinfo)
 
-            image_annotation = ImageAnnotation()
-            image_annotation.image_index = 0
             detection_results = {
                 "boxes": draw_boxes,
                 "scores": draw_scores,
                 "classes": draw_classes,
                 "masks": draw_mask,
             }
-
-            for bbox_id in range(len(boxes)):
-                bounding_box = BoundingBoxAnnotation()
-                bounding_box.box.x1 = boxes[bbox_id][0]
-                bounding_box.box.y1 = boxes[bbox_id][1]
-                bounding_box.box.x2 = boxes[bbox_id][2]
-                bounding_box.box.y2 = boxes[bbox_id][3]
-                bounding_box.score = scores[bbox_id]
-                bounding_box.object_class = class_names[classes[bbox_id]]
-                if (
-                    abs(bounding_box.box.x2 - bounding_box.box.x1)
-                    >= detic_image_labeler.config.min_width
-                    or abs(bounding_box.box.y2 - bounding_box.box.y1)
-                    >= detic_image_labeler.config.min_height
-                ) and abs(bounding_box.box.x2 - bounding_box.box.x1) * abs(
-                    bounding_box.box.y2 - bounding_box.box.y1
-                ) >= detic_image_labeler.config.min_area:
-                    image_annotation.bounding_boxes.append(copy.deepcopy(bounding_box))
-            image_annotations.append(
-                clip_encoder.get_image_embeddings_for_objects(
-                    input_image_x_re, image_annotation
-                )
-            )
-            visualization = detic_image_labeler.draw_predictions(
+            visualization = self.draw_predictions(
                 np.asarray(detic_image_labeler.to_pil_image(input_image_x_re)),
                 detection_results,
                 "lvis",
@@ -340,9 +315,9 @@ class DeticNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    minimal_publisher = MinimalPublisher()
-    rclpy.spin(minimal_publisher)
-    minimal_publisher.destroy_node()
+    detic_node = DeticNode()
+    rclpy.spin(detic_node)
+    detic_node.destroy_node()
     rclpy.shutdown()
 
 

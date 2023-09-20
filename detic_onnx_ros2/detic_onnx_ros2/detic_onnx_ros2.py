@@ -224,81 +224,77 @@ class DeticNode(Node):
 
     def image_callback(self, msg):
         input_image = self.bridge.imgmsg_to_cv2(msg)
-        # input_image = cv2.imread("/mnt/hdd3tb/ros2_ws/src/detic_onnx_ros2/desk.jpg")
-        if input_image is None:
-            print("No image is exit")
-        else:
-            print(input_image.shape)
-            print(type(input_image))
-            input_image_x = input_image.transpose((2, 0, 1)).copy()
+        print(input_image.shape)
+        print(type(input_image))
+        input_image_x = input_image.transpose((2, 0, 1)).copy()
 
-            vocabulary = "lvis"
+        vocabulary = "lvis"
 
-            class_names = (
-                self.get_lvis_meta_v1()
-                if vocabulary == "lvis"
-                else self.get_in21k_meta_v1()
-            )["thing_classes"]
+        class_names = (
+            self.get_lvis_meta_v1()
+            if vocabulary == "lvis"
+            else self.get_in21k_meta_v1()
+        )["thing_classes"]
 
-            image = self.preprocess(image=input_image)
-            input_image_x_re = cv2.resize(
-                input_image_x, (image.shape[2], image.shape[3])
-            )
-            print(f"resize : {input_image_x_re.shape}")
-            input_height = image.shape[2]
-            input_width = image.shape[3]
-            boxes, scores, classes, masks = self.session.run(
-                None,
-                {
-                    "img": image,
-                    "im_hw": np.array([input_height, input_width]).astype(np.int64),
-                },
-            )
-            draw_mask = masks
-            masks = masks.astype(np.uint8)
-            draw_classes = classes
-            draw_boxes = boxes
-            draw_scores = scores
+        image = self.preprocess(image=input_image)
+        input_image_x_re = cv2.resize(
+            input_image_x, (image.shape[2], image.shape[3])
+        )
+        print(f"resize : {input_image_x_re.shape}")
+        input_height = image.shape[2]
+        input_width = image.shape[3]
+        boxes, scores, classes, masks = self.session.run(
+            None,
+            {
+                "img": image,
+                "im_hw": np.array([input_height, input_width]).astype(np.int64),
+            },
+        )
+        draw_mask = masks
+        masks = masks.astype(np.uint8)
+        draw_classes = classes
+        draw_boxes = boxes
+        draw_scores = scores
 
-            labels = [class_names[i] for i in classes]
-            areas = np.prod(boxes[:, 2:] - boxes[:, :2], axis=1)
-            if areas is not None:
-                sorted_idxs = np.argsort(-areas).tolist()
-                # Re-order overlapped instances in descending order.
-                boxes = boxes[sorted_idxs]
-                labels = [labels[k] for k in sorted_idxs]
-                masks = [masks[idx] for idx in sorted_idxs]
-            # print(f"mask data type : {type(masks)}")
-            # print(f"mask data shape : {masks[0].shape}")
-            # print(f"mask data : {masks}")
-            scores = scores.astype(np.float32)
-            segMsg = self.bridge.cv2_to_imgmsg(masks[0], "8UC1")
-            # segMsg = []
-            # for i in masks:
-            #     segMsg.append(self.bridge.cv2_to_imgmsg(i, 'mono8'))
+        labels = [class_names[i] for i in classes]
+        areas = np.prod(boxes[:, 2:] - boxes[:, :2], axis=1)
+        if areas is not None:
+            sorted_idxs = np.argsort(-areas).tolist()
+            # Re-order overlapped instances in descending order.
+            boxes = boxes[sorted_idxs]
+            labels = [labels[k] for k in sorted_idxs]
+            masks = [masks[idx] for idx in sorted_idxs]
+        # print(f"mask data type : {type(masks)}")
+        # print(f"mask data shape : {masks[0].shape}")
+        # print(f"mask data : {masks}")
+        scores = scores.astype(np.float32)
+        segMsg = self.bridge.cv2_to_imgmsg(masks[0], "8UC1")
+        # segMsg = []
+        # for i in masks:
+        #     segMsg.append(self.bridge.cv2_to_imgmsg(i, 'mono8'))
 
-            self.segmentationinfo.header.stamp = self.get_clock().now().to_msg()
-            self.segmentationinfo.detected_classes = labels
-            # self.segmentationinfo.scores = scores
-            self.segmentationinfo.segmentation = segMsg
+        self.segmentationinfo.header.stamp = self.get_clock().now().to_msg()
+        self.segmentationinfo.detected_classes = labels
+        # self.segmentationinfo.scores = scores
+        self.segmentationinfo.segmentation = segMsg
 
-            self.segmentation_publisher.publish(self.segmentationinfo)
+        self.segmentation_publisher.publish(self.segmentationinfo)
 
-            detection_results = {
-                "boxes": draw_boxes,
-                "scores": draw_scores,
-                "classes": draw_classes,
-                "masks": draw_mask,
-            }
-            visualization = self.draw_predictions(
-                input_image_x_re,
-                detection_results,
-                "lvis",
-            )
+        detection_results = {
+            "boxes": draw_boxes,
+            "scores": draw_scores,
+            "classes": draw_classes,
+            "masks": draw_mask,
+        }
+        visualization = self.draw_predictions(
+            input_image_x_re,
+            detection_results,
+            "lvis",
+        )
 
-            imgMsg = self.bridge.cv2_to_imgmsg(visualization, "bgr8")
-            self.publisher.publish(imgMsg)
-            self.flag = True
+        imgMsg = self.bridge.cv2_to_imgmsg(visualization, "bgr8")
+        self.publisher.publish(imgMsg)
+        self.flag = True
 
 
 def main(args=None):

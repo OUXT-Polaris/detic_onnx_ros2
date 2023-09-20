@@ -57,7 +57,9 @@ class DeticNode(Node):
             with open(weight_path, mode="wb") as f:
                 f.write(requests.get(base_url + model).content)
         else:
-            self.get_logger().info("Model was found at path : " + weight_path + " skipping...")
+            self.get_logger().info(
+                "Model was found at path : " + weight_path + " skipping..."
+            )
         return weight_path
 
     def get_lvis_meta_v1(self) -> Dict[str, List[str]]:
@@ -225,9 +227,6 @@ class DeticNode(Node):
 
     def image_callback(self, msg):
         input_image = self.bridge.imgmsg_to_cv2(msg)
-        print(input_image.shape)
-        print(type(input_image))
-        input_image_x = input_image.transpose((2, 0, 1)).copy()
 
         vocabulary = "lvis"
 
@@ -238,10 +237,6 @@ class DeticNode(Node):
         )["thing_classes"]
 
         image = self.preprocess(image=input_image)
-        input_image_x_re = cv2.resize(
-            input_image_x, (image.shape[2], image.shape[3])
-        )
-        print(f"resize : {input_image_x_re.shape}")
         input_height = image.shape[2]
         input_width = image.shape[3]
         boxes, scores, classes, masks = self.session.run(
@@ -288,7 +283,7 @@ class DeticNode(Node):
             "masks": draw_mask,
         }
         visualization = self.draw_predictions(
-            input_image_x_re,
+            cv2.resize(input_image, (image.shape[2], image.shape[3])),
             detection_results,
             "lvis",
         )

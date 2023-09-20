@@ -241,8 +241,6 @@ class DeticNode(Node):
             print(input_image.shape)
             print(type(input_image))
             input_image_x = input_image.transpose((2, 0, 1)).copy()
-            input_image_x = torch.from_numpy(input_image_x).clone()
-            print(input_image_x.shape)
 
             vocabulary = "lvis"
 
@@ -253,8 +251,8 @@ class DeticNode(Node):
             )["thing_classes"]
 
             image = self.preprocess(image=input_image)
-            input_image_x_re = F.resize(
-                img=input_image_x, size=(image.shape[2], image.shape[3])
+            input_image_x_re = cv2.resize(
+                input_image_x, (image.shape[2], image.shape[3])
             )
             print(f"resize : {input_image_x_re.shape}")
             input_height = image.shape[2]
@@ -303,7 +301,7 @@ class DeticNode(Node):
                 "masks": draw_mask,
             }
             visualization = self.draw_predictions(
-                np.asarray(detic_image_labeler.to_pil_image(input_image_x_re)),
+                input_image_x_re,
                 detection_results,
                 "lvis",
             )

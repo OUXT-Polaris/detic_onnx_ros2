@@ -23,7 +23,9 @@ from detic_onnx_ros2.color import random_color, color_brightness
 class DeticNode(Node):
     def __init__(self):
         super().__init__("detic_node")
-        self.weight_and_model = self.download_onnx(self.config.get_onnx_filename())
+        self.weight_and_model = self.download_onnx(
+            "Detic_C2_SwinB_896_4x_IN-21K+COCO_lvis_op16.onnx"
+        )
         self.session = onnxruntime.InferenceSession(
             self.weight_and_model,
             providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
@@ -41,8 +43,6 @@ class DeticNode(Node):
             10,
         )
         self.bridge = CvBridge()
-        self.image_msg = None
-        self.flag = True
         self.segmentationinfo = SegmentationInfo()
 
     def download_onnx(
@@ -55,7 +55,7 @@ class DeticNode(Node):
         )
         weight_path = os.path.join(download_directory, model)
         if not os.path.exists(weight_path):
-            with open(weight_path ,mode='wb') as f:
+            with open(weight_path, mode="wb") as f:
                 f.write(requests.get(base_url + model).content)
         return weight_path
 
@@ -223,14 +223,7 @@ class DeticNode(Node):
         return image
 
     def image_callback(self, msg):
-        if self.flag == True:
-            self.image_msg = msg
-        else:
-            pass
-
-    def timer_callback(self):
-        self.flag = False
-        input_image = self.bridge.imgmsg_to_cv2(self.image_msg)
+        input_image = self.bridge.imgmsg_to_cv2(msg)
         # input_image = cv2.imread("/mnt/hdd3tb/ros2_ws/src/detic_onnx_ros2/desk.jpg")
         if input_image is None:
             print("No image is exit")
@@ -248,7 +241,9 @@ class DeticNode(Node):
             )["thing_classes"]
 
             image = self.preprocess(image=input_image)
-            input_image_x_re = cv2.resize(input_image_x, (image.shape[2], image.shape[3]))
+            input_image_x_re = cv2.resize(
+                input_image_x, (image.shape[2], image.shape[3])
+            )
             print(f"resize : {input_image_x_re.shape}")
             input_height = image.shape[2]
             input_width = image.shape[3]

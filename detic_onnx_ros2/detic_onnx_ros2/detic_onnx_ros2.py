@@ -1,15 +1,11 @@
 import os
-from typing import Any, List, Dict, Tuple
-import shutil
-from download import download
+from typing import Any, List, Dict
+import requests
 import onnxruntime
 import PIL.Image
 
-# from torch.nn.functional import grid_sample
 import numpy as np
 import cv2
-import json
-import copy
 
 import rclpy
 from rclpy.node import Node
@@ -59,7 +55,8 @@ class DeticNode(Node):
         )
         weight_path = os.path.join(download_directory, model)
         if not os.path.exists(weight_path):
-            download(base_url + model, weight_path)
+            with open(weight_path ,mode='wb') as f:
+                f.write(requests.get(base_url + model).content)
         return weight_path
 
     def get_lvis_meta_v1(self) -> Dict[str, List[str]]:
@@ -251,9 +248,7 @@ class DeticNode(Node):
             )["thing_classes"]
 
             image = self.preprocess(image=input_image)
-            input_image_x_re = cv2.resize(
-                input_image_x, (image.shape[2], image.shape[3])
-            )
+            input_image_x_re = cv2.resize(input_image_x, (image.shape[2], image.shape[3]))
             print(f"resize : {input_image_x_re.shape}")
             input_height = image.shape[2]
             input_width = image.shape[3]

@@ -5,7 +5,11 @@
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="nagaoaustineo@gmail.com">ubuntu</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache 2.0</license>
+
+  <depend>python3-onnxruntime-gpu-pip</depend>
+  <depend>python3-pil</depend>
+  <depend>python3-requests</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

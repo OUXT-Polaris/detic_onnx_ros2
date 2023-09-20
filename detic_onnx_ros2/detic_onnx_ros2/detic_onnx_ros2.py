@@ -34,8 +34,6 @@ class DeticNode(Node):
         self.segmentation_publisher = self.create_publisher(
             SegmentationInfo, "segmentationinfo", 10
         )
-        timer_period = 0.1
-        self.timer = self.create_timer(timer_period, self.timer_callback)
         self.subscription = self.create_subscription(
             Image,
             "/wamv/sensors/cameras/front_left_camera_sensor/image_raw",
@@ -55,8 +53,11 @@ class DeticNode(Node):
         )
         weight_path = os.path.join(download_directory, model)
         if not os.path.exists(weight_path):
+            self.get_logger().info("Start downloading model")
             with open(weight_path, mode="wb") as f:
                 f.write(requests.get(base_url + model).content)
+        else:
+            self.get_logger().info("Model was found at path : " + weight_path + " skipping...")
         return weight_path
 
     def get_lvis_meta_v1(self) -> Dict[str, List[str]]:

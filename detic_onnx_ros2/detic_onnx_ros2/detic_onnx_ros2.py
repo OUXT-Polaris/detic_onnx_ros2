@@ -18,6 +18,7 @@ from detic_onnx_ros2.imagenet_21k import IN21K_CATEGORIES
 from detic_onnx_ros2.lvis import LVIS_CATEGORIES as LVIS_V1_CATEGORIES
 from ament_index_python import get_package_share_directory
 from detic_onnx_ros2.color import random_color, color_brightness
+import copy
 
 
 class DeticNode(Node):
@@ -30,7 +31,7 @@ class DeticNode(Node):
             self.weight_and_model,
             providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
         )
-        self.publisher = self.create_publisher(Image, "detic_result", 10)
+        self.publisher = self.create_publisher(Image, "detic_result/image", 10)
         self.segmentation_publisher = self.create_publisher(
             SegmentationInfo, "segmentationinfo", 10
         )
@@ -76,17 +77,14 @@ class DeticNode(Node):
     def draw_predictions(
         self, image: np.ndarray, detection_results: Any, vocabulary: str
     ) -> np.ndarray:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        height, width = image.shape[:2]
+
+        width = image.shape[1]
+        height = image.shape[0]
 
         boxes = detection_results["boxes"].astype(np.int64)
         scores = detection_results["scores"]
         classes = detection_results["classes"].tolist()
         masks = detection_results["masks"].astype(np.uint8)
-
-        print(f"mask data type : {type(masks)}")
-        print(f"mask len : {len(masks)}")
-        print(f"mask shape : {masks.shape}")
 
         class_names = (
             self.get_lvis_meta_v1()
@@ -283,14 +281,12 @@ class DeticNode(Node):
             "masks": draw_mask,
         }
         visualization = self.draw_predictions(
-            cv2.resize(input_image, (image.shape[2], image.shape[3])),
+            cv2.resize(input_image, (input_width, input_height)),
             detection_results,
             "lvis",
         )
-
         imgMsg = self.bridge.cv2_to_imgmsg(visualization, "bgr8")
         self.publisher.publish(imgMsg)
-        self.flag = True
 
 
 def main(args=None):

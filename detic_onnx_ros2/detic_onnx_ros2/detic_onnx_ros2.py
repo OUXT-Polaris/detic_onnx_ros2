@@ -37,7 +37,7 @@ class DeticNode(Node):
         )
         self.subscription = self.create_subscription(
             Image,
-            "/wamv/sensors/cameras/front_left_camera_sensor/image_raw",
+            "image_raw",
             self.image_callback,
             10,
         )

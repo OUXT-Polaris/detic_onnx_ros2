@@ -99,8 +99,10 @@ class DeticNode(Node):
             if vocabulary == "lvis"
             else self.get_in21k_meta_v1()
         )["thing_classes"]
-        labels = [class_names[i] for i in classes]
-        labels = ["{} {:.0f}%".format(l, s * 100) for l, s in zip(labels, scores)]
+        object_labels = [class_names[i] for i in classes]
+        labels = [
+            "{} {:.0f}%".format(l, s * 100) for l, s in zip(object_labels, scores)
+        ]
 
         num_instances = len(boxes)
 
@@ -133,6 +135,8 @@ class DeticNode(Node):
                 color=color,
                 thickness=default_font_size // 4,
             )
+            segmentation.object_class = object_labels[i]
+            segmentation.score = float(scores[i])
             segmentation.bounding_box.xmin = int(min(x0, x1))
             segmentation.bounding_box.xmax = int(max(x0, x1))
             segmentation.bounding_box.ymin = int(min(y0, y1))

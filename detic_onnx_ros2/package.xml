@@ -10,6 +10,7 @@
   <depend>python3-onnxruntime-gpu-pip</depend>
   <depend>python3-pil</depend>
   <depend>python3-requests</depend>
+  <depend>launah_xml</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_pep257</test_depend>

@@ -33,6 +33,7 @@ You can see detection results in `/detic_result/image` topic with sensor_msgs/ms
 - [ ] Add config file for setting detection width / detic model type / vocaburary etc...
 - [ ] Publish object mask.
 - [ ] Inference with GPU.
+- [ ] Add test case.
 
 ## Limitation
 Custom vocabulary will not be supported because of onnx model used in this package does not support it.

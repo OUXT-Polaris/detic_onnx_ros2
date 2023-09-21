@@ -1,5 +1,5 @@
 import os
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Tuple
 import requests
 import onnxruntime
 import PIL.Image
@@ -11,7 +11,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 
-from detic_onnx_ros2_msg.msg import SegmentationInfo
+from detic_onnx_ros2_msg.msg import SegmentationInfo, Segmentation
 
 from cv_bridge import CvBridge
 from detic_onnx_ros2.imagenet_21k import IN21K_CATEGORIES
@@ -33,7 +33,7 @@ class DeticNode(Node):
             self.weight_and_model,
             providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
         )
-        self.publisher = self.create_publisher(Image, "detic_result/image", 10)
+        self.image_publisher = self.create_publisher(Image, "detic_result/image", 10)
         self.segmentation_publisher = self.create_publisher(
             SegmentationInfo, "segmentationinfo", 10
         )
@@ -78,7 +78,7 @@ class DeticNode(Node):
 
     def draw_predictions(
         self, image: np.ndarray, detection_results: Any, vocabulary: str
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, List[Segmentation]]:
 
         width = image.shape[1]
         height = image.shape[0]
@@ -178,7 +178,7 @@ class DeticNode(Node):
                 lineType=cv2.LINE_AA,
             )
 
-        return image
+        return image, []
 
     def mask_to_polygons(self, mask: np.ndarray) -> List[Any]:
         # cv2.RETR_CCOMP flag retrieves all the contours and arranges them to a 2-level
@@ -283,15 +283,14 @@ class DeticNode(Node):
             "classes": draw_classes,
             "masks": draw_mask,
         }
-        visualization = self.draw_predictions(
+        visualization, segmentations = self.draw_predictions(
             cv2.cvtColor(
                 cv2.resize(input_image, (input_width, input_height)), cv2.COLOR_BGR2RGB
             ),
             detection_results,
             "lvis",
         )
-        imgMsg = self.bridge.cv2_to_imgmsg(visualization, "bgr8")
-        self.publisher.publish(imgMsg)
+        self.image_publisher.publish(self.bridge.cv2_to_imgmsg(visualization, "bgr8"))
 
 
 def main(args=None):

@@ -12,7 +12,8 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/Mask.msg"
+  "msg/PointOnImage.msg"
+  "msg/Polygon.msg"
   "msg/BoundingBox.msg"
   "msg/Segmentation.msg"
   "msg/SegmentationInfo.msg"

@@ -7,6 +7,7 @@
   <maintainer email="nagaoaustineo@gmail.com">ubuntu</maintainer>
   <license>Apache 2.0</license>
 
+  <depend>detic_onnx_ros2_msg</depend>
   <depend>python3-onnxruntime-gpu-pip</depend>
   <depend>python3-pil</depend>
   <depend>python3-requests</depend>

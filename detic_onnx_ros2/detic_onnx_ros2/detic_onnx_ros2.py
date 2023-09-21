@@ -38,9 +38,11 @@ class DeticNode(Node):
             self.weight_and_model,
             providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
         )
-        self.image_publisher = self.create_publisher(Image, "detic_result/image", 10)
+        self.image_publisher = self.create_publisher(
+            Image, self.get_name() + "/detic_result/image", 10
+        )
         self.segmentation_publisher = self.create_publisher(
-            SegmentationInfo, "segmentationinfo", 10
+            SegmentationInfo, self.get_name() + "/detic_result/segmentation_info", 10
         )
         self.subscription = self.create_subscription(
             Image,

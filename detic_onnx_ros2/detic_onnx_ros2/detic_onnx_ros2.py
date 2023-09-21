@@ -11,7 +11,12 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 
-from detic_onnx_ros2_msg.msg import SegmentationInfo, Segmentation
+from detic_onnx_ros2_msg.msg import (
+    SegmentationInfo,
+    Segmentation,
+    Polygon,
+    PointOnImage,
+)
 
 from cv_bridge import CvBridge
 from detic_onnx_ros2.imagenet_21k import IN21K_CATEGORIES
@@ -78,7 +83,7 @@ class DeticNode(Node):
     def draw_predictions(
         self, image: np.ndarray, detection_results: Any, vocabulary: str
     ) -> Tuple[np.ndarray, List[Segmentation]]:
-
+        segmentations: List[Segmentation] = []
         width = image.shape[1]
         height = image.shape[0]
 
@@ -112,6 +117,7 @@ class DeticNode(Node):
         default_font_size = int(max(np.sqrt(height * width) // 90, 10))
 
         for i in range(num_instances):
+            segmentation: Segmentation = Segmentation()
             color = assigned_colors[i]
             color = (int(color[0]), int(color[1]), int(color[2]))
             image_b = image.copy()
@@ -125,12 +131,24 @@ class DeticNode(Node):
                 color=color,
                 thickness=default_font_size // 4,
             )
+            segmentation.bounding_box.xmin = int(min(x0, x1))
+            segmentation.bounding_box.xmax = int(max(x0, x1))
+            segmentation.bounding_box.ymin = int(min(y0, y1))
+            segmentation.bounding_box.ymax = int(max(y0, y1))
 
             # draw segment
             polygons = self.mask_to_polygons(masks[i])
             for points in polygons:
+                polygon = Polygon()
                 points = np.array(points).reshape((1, -1, 2)).astype(np.int32)
+                for i in range(points[0].shape[0]):
+                    point_on_image = PointOnImage()
+                    point_on_image.x = int(points[0][i][0])
+                    point_on_image.y = int(points[0][i][1])
+                    polygon.points.append(point_on_image)
                 cv2.fillPoly(image_b, pts=[points], color=color)
+                segmentation.polygons.append(polygon)
+            segmentations.append(segmentation)
 
             image = cv2.addWeighted(image, 0.5, image_b, 0.5, 0)
 
@@ -177,7 +195,7 @@ class DeticNode(Node):
                 lineType=cv2.LINE_AA,
             )
 
-        return image, []
+        return image, segmentations
 
     def mask_to_polygons(self, mask: np.ndarray) -> List[Any]:
         # cv2.RETR_CCOMP flag retrieves all the contours and arranges them to a 2-level
@@ -282,6 +300,7 @@ class DeticNode(Node):
         )
         segmentation_info = SegmentationInfo()
         segmentation_info.header = msg.header
+        segmentation_info.segmentations = segmentations
         self.segmentation_publisher.publish(segmentation_info)
         self.image_publisher.publish(self.bridge.cv2_to_imgmsg(visualization, "bgr8"))
 

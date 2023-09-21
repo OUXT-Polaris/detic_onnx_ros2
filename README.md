@@ -31,9 +31,9 @@ You can see detection results in `/detic_result/image` topic with sensor_msgs/ms
 - [x] Publish object class.
 - [x] Publish object score.
 - [x] Add launch file.
-- [ ] Add config file for setting detection width / detic model type / vocaburary etc...
-- [ ] Publish object mask.
-- [ ] Inference with GPU.
+- [ ] Add parameter for setting detection width / detic model type / vocaburary etc...
+- [x] Publish object mask.
+- [x] Inference with GPU.
 - [ ] Add test case.
 
 ## Limitation

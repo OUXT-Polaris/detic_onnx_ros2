@@ -9,6 +9,7 @@ Running detic instance segmentation with ROS 2 topic.
 ## How to use.
 
 In order to build this package, just run.
+This packages support ROS 2 humble.
 
 ```
 rosdep install -iry --from-paths .
@@ -29,10 +30,11 @@ You can see detection results in `/detic_result/image` topic with sensor_msgs/ms
 - [x] Visualize segmentation result.
 - [x] Publish object class.
 - [x] Publish object score.
-- [ ] Add launch file.
-- [ ] Add config file for setting detection width / detic model type / vocaburary etc...
-- [ ] Publish object mask.
-- [ ] Inference with GPU.
+- [x] Add launch file.
+- [ ] Add parameter for setting detection width / detic model type / vocaburary etc...
+- [x] Publish object mask.
+- [x] Inference with GPU.
+- [ ] Add test case.
 
 ## Limitation
 Custom vocabulary will not be supported because of onnx model used in this package does not support it.

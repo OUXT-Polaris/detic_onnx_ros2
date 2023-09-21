@@ -1,5 +1,5 @@
 import os
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Tuple
 import requests
 import onnxruntime
 import PIL.Image
@@ -11,19 +11,26 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 
-from detic_onnx_ros2_msg.msg import SegmentationInfo
+from detic_onnx_ros2_msg.msg import (
+    SegmentationInfo,
+    Segmentation,
+    Polygon,
+    PointOnImage,
+)
 
 from cv_bridge import CvBridge
 from detic_onnx_ros2.imagenet_21k import IN21K_CATEGORIES
 from detic_onnx_ros2.lvis import LVIS_CATEGORIES as LVIS_V1_CATEGORIES
 from ament_index_python import get_package_share_directory
 from detic_onnx_ros2.color import random_color, color_brightness
-import copy
+import time
 
 
 class DeticNode(Node):
     def __init__(self):
         super().__init__("detic_node")
+        self.declare_parameter("detection_width", 800)
+        self.detection_width: int = self.get_parameter("detection_width").value
         self.weight_and_model = self.download_onnx(
             "Detic_C2_SwinB_896_4x_IN-21K+COCO_lvis_op16.onnx"
         )
@@ -31,9 +38,11 @@ class DeticNode(Node):
             self.weight_and_model,
             providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
         )
-        self.publisher = self.create_publisher(Image, "detic_result/image", 10)
+        self.image_publisher = self.create_publisher(
+            Image, self.get_name() + "/detic_result/image", 10
+        )
         self.segmentation_publisher = self.create_publisher(
-            SegmentationInfo, "segmentationinfo", 10
+            SegmentationInfo, self.get_name() + "/detic_result/segmentation_info", 10
         )
         self.subscription = self.create_subscription(
             Image,
@@ -42,7 +51,6 @@ class DeticNode(Node):
             10,
         )
         self.bridge = CvBridge()
-        self.segmentationinfo = SegmentationInfo()
 
     def download_onnx(
         self,
@@ -76,8 +84,8 @@ class DeticNode(Node):
 
     def draw_predictions(
         self, image: np.ndarray, detection_results: Any, vocabulary: str
-    ) -> np.ndarray:
-
+    ) -> Tuple[np.ndarray, List[Segmentation]]:
+        segmentations: List[Segmentation] = []
         width = image.shape[1]
         height = image.shape[0]
 
@@ -91,8 +99,10 @@ class DeticNode(Node):
             if vocabulary == "lvis"
             else self.get_in21k_meta_v1()
         )["thing_classes"]
-        labels = [class_names[i] for i in classes]
-        labels = ["{} {:.0f}%".format(l, s * 100) for l, s in zip(labels, scores)]
+        object_labels = [class_names[i] for i in classes]
+        labels = [
+            "{} {:.0f}%".format(l, s * 100) for l, s in zip(object_labels, scores)
+        ]
 
         num_instances = len(boxes)
 
@@ -111,6 +121,7 @@ class DeticNode(Node):
         default_font_size = int(max(np.sqrt(height * width) // 90, 10))
 
         for i in range(num_instances):
+            segmentation: Segmentation = Segmentation()
             color = assigned_colors[i]
             color = (int(color[0]), int(color[1]), int(color[2]))
             image_b = image.copy()
@@ -124,12 +135,26 @@ class DeticNode(Node):
                 color=color,
                 thickness=default_font_size // 4,
             )
+            segmentation.object_class = object_labels[i]
+            segmentation.score = float(scores[i])
+            segmentation.bounding_box.xmin = int(min(x0, x1))
+            segmentation.bounding_box.xmax = int(max(x0, x1))
+            segmentation.bounding_box.ymin = int(min(y0, y1))
+            segmentation.bounding_box.ymax = int(max(y0, y1))
 
             # draw segment
             polygons = self.mask_to_polygons(masks[i])
             for points in polygons:
+                polygon = Polygon()
                 points = np.array(points).reshape((1, -1, 2)).astype(np.int32)
+                for i in range(points[0].shape[0]):
+                    point_on_image = PointOnImage()
+                    point_on_image.x = int(points[0][i][0])
+                    point_on_image.y = int(points[0][i][1])
+                    polygon.points.append(point_on_image)
                 cv2.fillPoly(image_b, pts=[points], color=color)
+                segmentation.polygons.append(polygon)
+            segmentations.append(segmentation)
 
             image = cv2.addWeighted(image, 0.5, image_b, 0.5, 0)
 
@@ -176,7 +201,7 @@ class DeticNode(Node):
                 lineType=cv2.LINE_AA,
             )
 
-        return image
+        return image, segmentations
 
     def mask_to_polygons(self, mask: np.ndarray) -> List[Any]:
         # cv2.RETR_CCOMP flag retrieves all the contours and arranges them to a 2-level
@@ -199,11 +224,11 @@ class DeticNode(Node):
         # would be to first +0.5 and then dilate the returned polygon by 0.5.
         return [x + 0.5 for x in res if len(x) >= 6]
 
-    def preprocess(self, image: np.ndarray, detection_width: int = 800) -> np.ndarray:
+    def preprocess(self, image: np.ndarray) -> np.ndarray:
         height, width, _ = image.shape
         image = image[:, :, ::-1]  # BGR -> RGB
-        size = detection_width
-        max_size = detection_width
+        size = self.detection_width
+        max_size = self.detection_width
         scale = size / min(height, width)
         if height < width:
             oh, ow = size, scale * width
@@ -237,12 +262,19 @@ class DeticNode(Node):
         image = self.preprocess(image=input_image)
         input_height = image.shape[2]
         input_width = image.shape[3]
+        inference_start_time = time.perf_counter()
         boxes, scores, classes, masks = self.session.run(
             None,
             {
                 "img": image,
                 "im_hw": np.array([input_height, input_width]).astype(np.int64),
             },
+        )
+        inference_end_time = time.perf_counter()
+        self.get_logger().info(
+            "Inference takes "
+            + str(inference_end_time - inference_start_time)
+            + " [sec]"
         )
         draw_mask = masks
         masks = masks.astype(np.uint8)
@@ -258,37 +290,25 @@ class DeticNode(Node):
             boxes = boxes[sorted_idxs]
             labels = [labels[k] for k in sorted_idxs]
             masks = [masks[idx] for idx in sorted_idxs]
-        # print(f"mask data type : {type(masks)}")
-        # print(f"mask data shape : {masks[0].shape}")
-        # print(f"mask data : {masks}")
         scores = scores.astype(np.float32)
-        segMsg = self.bridge.cv2_to_imgmsg(masks[0], "8UC1")
-        # segMsg = []
-        # for i in masks:
-        #     segMsg.append(self.bridge.cv2_to_imgmsg(i, 'mono8'))
-
-        self.segmentationinfo.header.stamp = self.get_clock().now().to_msg()
-        self.segmentationinfo.detected_classes = labels
-        # self.segmentationinfo.scores = scores
-        self.segmentationinfo.segmentation = segMsg
-
-        self.segmentation_publisher.publish(self.segmentationinfo)
-
         detection_results = {
             "boxes": draw_boxes,
             "scores": draw_scores,
             "classes": draw_classes,
             "masks": draw_mask,
         }
-        visualization = self.draw_predictions(
+        visualization, segmentations = self.draw_predictions(
             cv2.cvtColor(
                 cv2.resize(input_image, (input_width, input_height)), cv2.COLOR_BGR2RGB
             ),
             detection_results,
             "lvis",
         )
-        imgMsg = self.bridge.cv2_to_imgmsg(visualization, "bgr8")
-        self.publisher.publish(imgMsg)
+        segmentation_info = SegmentationInfo()
+        segmentation_info.header = msg.header
+        segmentation_info.segmentations = segmentations
+        self.segmentation_publisher.publish(segmentation_info)
+        self.image_publisher.publish(self.bridge.cv2_to_imgmsg(visualization, "bgr8"))
 
 
 def main(args=None):

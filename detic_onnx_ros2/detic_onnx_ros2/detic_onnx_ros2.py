@@ -24,6 +24,8 @@ import time
 class DeticNode(Node):
     def __init__(self):
         super().__init__("detic_node")
+        self.declare_parameter("detection_width", 800)
+        self.detection_width: int = self.get_parameter("detection_width").value
         self.weight_and_model = self.download_onnx(
             "Detic_C2_SwinB_896_4x_IN-21K+COCO_lvis_op16.onnx"
         )
@@ -199,11 +201,11 @@ class DeticNode(Node):
         # would be to first +0.5 and then dilate the returned polygon by 0.5.
         return [x + 0.5 for x in res if len(x) >= 6]
 
-    def preprocess(self, image: np.ndarray, detection_width: int = 800) -> np.ndarray:
+    def preprocess(self, image: np.ndarray) -> np.ndarray:
         height, width, _ = image.shape
         image = image[:, :, ::-1]  # BGR -> RGB
-        size = detection_width
-        max_size = detection_width
+        size = self.detection_width
+        max_size = self.detection_width
         scale = size / min(height, width)
         if height < width:
             oh, ow = size, scale * width
@@ -246,7 +248,11 @@ class DeticNode(Node):
             },
         )
         inference_end_time = time.perf_counter()
-        self.get_logger().info("Inference takes " + str(inference_end_time - inference_start_time) + " [sec]")
+        self.get_logger().info(
+            "Inference takes "
+            + str(inference_end_time - inference_start_time)
+            + " [sec]"
+        )
         draw_mask = masks
         masks = masks.astype(np.uint8)
         draw_classes = classes
@@ -261,19 +267,13 @@ class DeticNode(Node):
             boxes = boxes[sorted_idxs]
             labels = [labels[k] for k in sorted_idxs]
             masks = [masks[idx] for idx in sorted_idxs]
-        # print(f"mask data type : {type(masks)}")
-        # print(f"mask data shape : {masks[0].shape}")
-        # print(f"mask data : {masks}")
         scores = scores.astype(np.float32)
-        segMsg = self.bridge.cv2_to_imgmsg(masks[0], "8UC1")
-        # segMsg = []
-        # for i in masks:
-        #     segMsg.append(self.bridge.cv2_to_imgmsg(i, 'mono8'))
+        # segMsg = self.bridge.cv2_to_imgmsg(masks[0], "8UC1")
 
         self.segmentationinfo.header.stamp = self.get_clock().now().to_msg()
         self.segmentationinfo.detected_classes = labels
         # self.segmentationinfo.scores = scores
-        self.segmentationinfo.segmentation = segMsg
+        # self.segmentationinfo.segmentation = segMsg
 
         self.segmentation_publisher.publish(self.segmentationinfo)
 

@@ -44,7 +44,6 @@ class DeticNode(Node):
             10,
         )
         self.bridge = CvBridge()
-        self.segmentationinfo = SegmentationInfo()
 
     def download_onnx(
         self,
@@ -268,15 +267,6 @@ class DeticNode(Node):
             labels = [labels[k] for k in sorted_idxs]
             masks = [masks[idx] for idx in sorted_idxs]
         scores = scores.astype(np.float32)
-        # segMsg = self.bridge.cv2_to_imgmsg(masks[0], "8UC1")
-
-        self.segmentationinfo.header.stamp = self.get_clock().now().to_msg()
-        self.segmentationinfo.detected_classes = labels
-        # self.segmentationinfo.scores = scores
-        # self.segmentationinfo.segmentation = segMsg
-
-        self.segmentation_publisher.publish(self.segmentationinfo)
-
         detection_results = {
             "boxes": draw_boxes,
             "scores": draw_scores,
@@ -290,6 +280,9 @@ class DeticNode(Node):
             detection_results,
             "lvis",
         )
+        segmentation_info = SegmentationInfo()
+        segmentation_info.header = msg.header
+        self.segmentation_publisher.publish(segmentation_info)
         self.image_publisher.publish(self.bridge.cv2_to_imgmsg(visualization, "bgr8"))
 
 

@@ -19,6 +19,7 @@ from detic_onnx_ros2.lvis import LVIS_CATEGORIES as LVIS_V1_CATEGORIES
 from ament_index_python import get_package_share_directory
 from detic_onnx_ros2.color import random_color, color_brightness
 import copy
+import time
 
 
 class DeticNode(Node):
@@ -29,7 +30,7 @@ class DeticNode(Node):
         )
         self.session = onnxruntime.InferenceSession(
             self.weight_and_model,
-            providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
+            providers=["CUDAExecutionProvider"],  # "CUDAExecutionProvider"],
         )
         self.publisher = self.create_publisher(Image, "detic_result/image", 10)
         self.segmentation_publisher = self.create_publisher(
@@ -37,7 +38,7 @@ class DeticNode(Node):
         )
         self.subscription = self.create_subscription(
             Image,
-            "image_raw",
+            "/camera/image_raw",
             self.image_callback,
             10,
         )
@@ -237,6 +238,7 @@ class DeticNode(Node):
         image = self.preprocess(image=input_image)
         input_height = image.shape[2]
         input_width = image.shape[3]
+        inference_start_time = time.perf_counter()
         boxes, scores, classes, masks = self.session.run(
             None,
             {
@@ -244,51 +246,58 @@ class DeticNode(Node):
                 "im_hw": np.array([input_height, input_width]).astype(np.int64),
             },
         )
-        draw_mask = masks
-        masks = masks.astype(np.uint8)
-        draw_classes = classes
-        draw_boxes = boxes
-        draw_scores = scores
-
-        labels = [class_names[i] for i in classes]
-        areas = np.prod(boxes[:, 2:] - boxes[:, :2], axis=1)
-        if areas is not None:
-            sorted_idxs = np.argsort(-areas).tolist()
-            # Re-order overlapped instances in descending order.
-            boxes = boxes[sorted_idxs]
-            labels = [labels[k] for k in sorted_idxs]
-            masks = [masks[idx] for idx in sorted_idxs]
-        # print(f"mask data type : {type(masks)}")
-        # print(f"mask data shape : {masks[0].shape}")
-        # print(f"mask data : {masks}")
-        scores = scores.astype(np.float32)
-        segMsg = self.bridge.cv2_to_imgmsg(masks[0], "8UC1")
-        # segMsg = []
-        # for i in masks:
-        #     segMsg.append(self.bridge.cv2_to_imgmsg(i, 'mono8'))
-
-        self.segmentationinfo.header.stamp = self.get_clock().now().to_msg()
-        self.segmentationinfo.detected_classes = labels
-        # self.segmentationinfo.scores = scores
-        self.segmentationinfo.segmentation = segMsg
-
-        self.segmentation_publisher.publish(self.segmentationinfo)
-
-        detection_results = {
-            "boxes": draw_boxes,
-            "scores": draw_scores,
-            "classes": draw_classes,
-            "masks": draw_mask,
-        }
-        visualization = self.draw_predictions(
-            cv2.cvtColor(
-                cv2.resize(input_image, (input_width, input_height)), cv2.COLOR_BGR2RGB
-            ),
-            detection_results,
-            "lvis",
+        inference_end_time = time.perf_counter()
+        self.get_logger().info(
+            "Inference takes "
+            + str(inference_end_time - inference_start_time)
+            + " [sec]"
         )
-        imgMsg = self.bridge.cv2_to_imgmsg(visualization, "bgr8")
-        self.publisher.publish(imgMsg)
+        if(len(boxes) != 0 and len(scores) != 0 and len(classes) != 0 and len(masks) != 0):
+            draw_mask = masks
+            masks = masks.astype(np.uint8)
+            draw_classes = classes
+            draw_boxes = boxes
+            draw_scores = scores
+
+            labels = [class_names[i] for i in classes]
+            areas = np.prod(boxes[:, 2:] - boxes[:, :2], axis=1)
+            if areas is not None:
+                sorted_idxs = np.argsort(-areas).tolist()
+                # Re-order overlapped instances in descending order.
+                boxes = boxes[sorted_idxs]
+                labels = [labels[k] for k in sorted_idxs]
+                masks = [masks[idx] for idx in sorted_idxs]
+            # print(f"mask data type : {type(masks)}")
+            # print(f"mask data shape : {masks[0].shape}")
+            # print(f"mask data : {masks}")
+            scores = scores.astype(np.float32)
+            segMsg = self.bridge.cv2_to_imgmsg(masks[0], "8UC1")
+            # segMsg = []
+            # for i in masks:
+            #     segMsg.append(self.bridge.cv2_to_imgmsg(i, 'mono8'))
+
+            self.segmentationinfo.header.stamp = self.get_clock().now().to_msg()
+            self.segmentationinfo.detected_classes = labels
+            # self.segmentationinfo.scores = scores
+            self.segmentationinfo.segmentation = segMsg
+
+            self.segmentation_publisher.publish(self.segmentationinfo)
+
+            detection_results = {
+                "boxes": draw_boxes,
+                "scores": draw_scores,
+                "classes": draw_classes,
+                "masks": draw_mask,
+            }
+            visualization = self.draw_predictions(
+                cv2.cvtColor(
+                    cv2.resize(input_image, (input_width, input_height)), cv2.COLOR_BGR2RGB
+                ),
+                detection_results,
+                "lvis",
+            )
+            imgMsg = self.bridge.cv2_to_imgmsg(visualization, "bgr8")
+            self.publisher.publish(imgMsg)
 
 
 def main(args=None):

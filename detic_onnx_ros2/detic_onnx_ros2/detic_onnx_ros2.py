@@ -25,20 +25,28 @@ import time
 class DeticNode(Node):
     def __init__(self):
         super().__init__("detic_node")
+        self.set_ros2param()
         self.weight_and_model = self.download_onnx(
             "Detic_C2_SwinB_896_4x_IN-21K+COCO_lvis_op16.onnx"
         )
-        self.session = onnxruntime.InferenceSession(
-            self.weight_and_model,
-            providers=["CUDAExecutionProvider"],  # "CUDAExecutionProvider"],
-        )
+        device = self.get_parameter('device').value
+        if(device == "gpu"):    
+            self.session = onnxruntime.InferenceSession(
+                self.weight_and_model,
+                providers=["CUDAExecutionProvider"],
+            )
+        else:
+            self.session = onnxruntime.InferenceSession(
+                self.weight_and_model,
+                providers=["CPUExecutionProvider"],
+            )
         self.publisher = self.create_publisher(Image, "detic_result/image", 10)
         self.segmentation_publisher = self.create_publisher(
             SegmentationInfo, "segmentationinfo", 10
         )
         self.subscription = self.create_subscription(
             Image,
-            "/image_raw",
+            "image_raw",
             self.image_callback,
             10,
         )
@@ -298,6 +306,9 @@ class DeticNode(Node):
             )
             imgMsg = self.bridge.cv2_to_imgmsg(visualization, "bgr8")
             self.publisher.publish(imgMsg)
+    
+    def set_ros2param(self):
+        self.declare_parameter('device',"gpu")
 
 
 def main(args=None):

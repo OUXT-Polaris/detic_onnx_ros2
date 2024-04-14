@@ -1,0 +1,8 @@
+<launch>
+  <arg name="input_topic" default="image_raw"/>
+  <arg name="detection_width" default="800"/>
+  <node name="detic_onnx_ros2_node" pkg="detic_onnx_ros2" exec="detic_onnx_ros2_node">
+    <remap from="image_raw" to="$(var input_topic)"/>
+    <param name="detection_width" value="$(var detection_width)"/>
+  </node>
+</launch>

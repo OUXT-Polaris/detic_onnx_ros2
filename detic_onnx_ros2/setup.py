@@ -19,7 +19,7 @@ setup(
     maintainer_email="nagaoaustineo@gmail.com",
     description="Run detic inference with ROS 2 image.",
     license="Apache 2.0",
-    tests_require=["pytest"],
+    # tests_require=["pytest"],
     entry_points={
         "console_scripts": [
             "detic_onnx_ros2_node = detic_onnx_ros2.detic_onnx_ros2:main"

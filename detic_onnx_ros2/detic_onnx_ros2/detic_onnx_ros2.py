@@ -23,24 +23,29 @@ from detic_onnx_ros2.imagenet_21k import IN21K_CATEGORIES
 from detic_onnx_ros2.lvis import LVIS_CATEGORIES as LVIS_V1_CATEGORIES
 from ament_index_python import get_package_share_directory
 from detic_onnx_ros2.color import random_color, color_brightness
+import copy
 import time
 
 
 class DeticNode(Node):
     def __init__(self):
         super().__init__("detic_node")
-        self.declare_parameter("detection_width", 800)
-        self.detection_width: int = self.get_parameter("detection_width").value
+        self.set_ros2param()
         self.weight_and_model = self.download_onnx(
             "Detic_C2_SwinB_896_4x_IN-21K+COCO_lvis_op16.onnx"
         )
-        self.session = onnxruntime.InferenceSession(
-            self.weight_and_model,
-            providers=["CPUExecutionProvider"],  # "CUDAExecutionProvider"],
-        )
-        self.image_publisher = self.create_publisher(
-            Image, self.get_name() + "/detic_result/image", 10
-        )
+        device = self.get_parameter('device').value
+        if(device == "gpu"):    
+            self.session = onnxruntime.InferenceSession(
+                self.weight_and_model,
+                providers=["CUDAExecutionProvider"],
+            )
+        else:
+            self.session = onnxruntime.InferenceSession(
+                self.weight_and_model,
+                providers=["CPUExecutionProvider"],
+            )
+        self.publisher = self.create_publisher(Image, "detic_result/image", 10)
         self.segmentation_publisher = self.create_publisher(
             SegmentationInfo, self.get_name() + "/detic_result/segmentation_info", 10
         )
@@ -310,6 +315,8 @@ class DeticNode(Node):
         self.segmentation_publisher.publish(segmentation_info)
         self.image_publisher.publish(self.bridge.cv2_to_imgmsg(visualization, "bgr8"))
 
+    def set_ros2param(self):
+        self.declare_parameter('device',"gpu")
 
 def main(args=None):
     rclpy.init(args=args)
